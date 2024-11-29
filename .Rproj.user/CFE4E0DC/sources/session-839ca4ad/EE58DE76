@@ -1,0 +1,27 @@
+{
+    "id": "EE58DE76",
+    "path": "~/TP_modele_probabiliste/gc_MonteCarlo_SimulationReductionVariance.Rmd",
+    "project_path": "gc_MonteCarlo_SimulationReductionVariance.Rmd",
+    "type": "r_markdown",
+    "hash": "0",
+    "contents": "",
+    "dirty": false,
+    "created": 1732890673306.0,
+    "source_on_save": false,
+    "relative_order": 1,
+    "properties": {
+        "source_window_id": "",
+        "Source": "Source",
+        "disableDependencyDiscovery": "1",
+        "cursorPosition": "12,13",
+        "scrollLine": "0"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1732887575,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1732887575,
+    "read_only": false,
+    "read_only_alternatives": []
+}

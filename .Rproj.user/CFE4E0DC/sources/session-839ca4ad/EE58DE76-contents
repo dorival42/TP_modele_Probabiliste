@@ -1,0 +1,435 @@
+---
+title: "Méthode de Monte-Carlo"
+header-includes:
+  - \usepackage[french]{babel}
+  - \usepackage{amssymb}
+  - \usepackage{amsmath,amscd}
+  - \usepackage{bbm}
+subtitle: "Simulation et Intégration"
+author: "Gilles Cohen, Master 2 Mathématiques et Applications"
+date: "UCBL MSDS, Université Lyon 1, octobre 2023"
+output:
+  pdf_document:
+    toc: true
+    toc_depth: 2
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+\newcommand{\1}{\mathbbm{1}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\N}{\mathbb{N}}
+\newcommand{\p}{\mathbb{P}}
+
+
+
+On rappelle le principe de fonctionnement des méthodes MC. On considère une intégrale de la forme:
+
+$$ I = \int_R g(x) f(x) dx $$
+où la fonction $f$ est supposée être une densité de probabilité : $f(x) \geq 0$ et $\int_R f(x) dx=1$. En général,
+une telle intégrale n’est pas calculable explicitement car on ne connait pas de primitive de la fonction
+intégrée. Les méthodes de Monte Carlo proposent d’estimer $I$ par la quantité 
+$$ I_n = \frac{1}{n} \sum_{i=1}^n g(X_i) $$
+où $X_1,X_2,\dots,X_n$ sont des réalisations indépendantes suivant la loi de densité $f$. L'erreur $\epsilon_n=I-I_n$ commises par ces méthodes est évaluée de la façon suivante. On peut montrer
+que, pour $n$ assez grand, il y a 95\% de chance que $\epsilon_n$ appartiennent à l'intervalle $\left [ -\frac{2\sigma_f}{\sqrt{n}};\frac{2\sigma_f}{\sqrt{n}} \right ]$
+où $\sigma^2_f(g)=Var(g(X_1))=\int_R g^2(x)f(x)dx-(\int_R g(x)f(x)dx)^2$. La quantité $\sigma^2_f(g)$ étant en général
+inconnue, on l’estime par $\hat{\sigma}^2_f(g)=\frac{1}{n-1} \sum_{i=1}^n \left ( g(X_i) - I_n \right)^2$. Il y a encore 95\% de chance que $\epsilon_n$ appartienne à l'intervalle $\left [ -\frac{2\sigma_f}{\sqrt{n}};\frac{2\sigma_f}{\sqrt{n}} \right ]$.
+La qualité d'une méthode de Monte Carlo est donc déterminée par le rapport $\frac{\sigma_f(g)}{\sqrt{n}} \approx \frac{\hat{\sigma}_f(g)}{\sqrt{n}}$ .
+
+On s'intéresse dans ce TP à faire diminuer la quantité $\sigma_f$
+
+
+# 1. Estimateur de Monte-Carlo simple
+
+## 1.1 Exemple 
+
+Calculer une estimation de MC de 
+$$ \theta= \int_0^1 e^{-x} dx$$
+et comparer l'estimation avec la valeur exacte
+
+```{r}
+m <- 10000
+x <- runif(m)
+theta.hat <- mean(exp(-x))
+print(theta.hat)
+exact=1 - exp(-1)
+print(exact)
+```
+L'estimation est  $\hat{\theta}=$ `r theta.hat` et $\theta=1-e^{-1}=$ `r exact`
+
+## 1.2 Exemple 
+
+Calculer l'estimateur MC de $\theta=\int_{2}^4 e^{-x} dx$ et comparer l'estimation avec la valeur exacte de l'intégrale.
+
+```{r}
+m <- 10000
+x <- runif(m, min = 2, max = 4)
+theta.hat <- mean(exp(-x)) * 2
+print(theta.hat)
+exact=exp(-2) - exp(-4)
+print(exact)
+
+```
+L'estimation est  $\hat{\theta}=$ `r theta.hat` et $\theta=e^{-2}-e^{-4}=$ `r exact`
+
+## 1.3 Exemple 
+Utilisez l'approche MC pout estimer la fonction de répartition normale standard
+$$ \Phi(x) = \int_{-\infty}^{+\infty} \frac{1}{\sqrt{2 \pi}} e^{-t^2/2} dt$$
+puisque l'intégration couvre un intervalle non borné, on décompose le problème en deux cas: $x\geq 0$ et $x<0$, et on utilise la symétrie de la densité de la loi normale pour traiter le second cas. 
+
+- Pour estimer $\theta=\int_{0}^x e^{-t^2/2}dt$ pour $x>0$, on peut générer des nombres aléatoires $U(0,x)$, mais ça va changer les paramètres de la distribution uniforme pour chaque différente valeur.
+
+On préférera un algorithme qui echantillonne toujours selon $U(0,1)$ par un changement de variables. En procédant à la substitution $y=t/x$, on a $dt=xdy$ et 
+$$ \theta= \int_{0}^1 x e^{-(xy)^2/2} dy$$
+Ainsi, $\theta=\mathbb{E}_Y[x e^{-(xY)^2/2}]$, où la v.a. $Y$ a une dist $U(0,1)$.
+Générer des nombres aléatoires $u_1,\dots,u_m$ i.i.d. $\sim U(0,1)$ et calculer 
+$$ \hat{\theta} = \overline{g_m(u)} = \frac{1}{m} \sum_{t=1}^m x e^{-(u_ix)^2/2}$$
+Moyenne empirique $\hat{\theta} \rightarrow E[\hat{\theta}]$ tant que $m \rightarrow \infty$. Si $x > 0$, l'estimation de $\Phi(x)$ est $0.5 + \hat{\theta}/\sqrt{2 \pi}$. Si $x <0$, calculer $\Phi(x)=1-\Phi(-x)$
+
+```{r}
+x <- seq(0.1, 2.5, length = 10)
+m <- 10000
+u <- runif(m)
+cdf <- numeric(length(x))
+for (i in 1:length(x)) {
+g <- x[i] * exp(-(u * x[i])^2/2)
+cdf[i] <- mean(g)/sqrt(2 * pi) + 0.5
+}
+Phi <- pnorm(x)
+print(round(rbind(x, cdf, Phi), 3))
+```
+Les estimations $\hat{\theta}$ pour 10 valeurs sont stockés dans le vecteur cdf. Vous pouvez comparer avec les estimations de $\Phi(x)$ calculé par la fonction \texttt{pnorm}. L'estimation MC apparait être très proche des valeurs obtenues avec pnorm. 
+
+## 1.4 Exemple
+
+Soit $I(.)$ la fonction indicatrice, et $Z \in \mathcal{N}(0,1)$. Alors pour n'inporte quelle constante $x$ on a $E[I(Z\leq x)]=P(Z\leq x)=\Phi(x)$.  
+
+Générer un échantillon aléatoire $z_1,\dots,z_m$ $\sim \mathcal{N}(0,1)$. Alors la moyenne empirique est :
+$$ \widehat{\Phi(x)}=\frac{1}{m} \sum_{i=1}^m I(z_i \leq x) \rightarrow E[I(Z\leq x)]=\Phi(x)$$
+```{r}
+x <- seq(0.1, 2.5, length = 10)
+m <- 10000
+z <- rnorm(m)
+dim(x) <- length(x)
+p <- apply(x, MARGIN = 1, FUN = function(x, z) {
+mean(z < x)
+}, z = z)
+Phi <- pnorm(x)
+print(round(rbind(x, p, Phi), 3))
+```
+Comparer avec l'exemple précédent on est en meilleur accord avec \texttt{pnorm} dans la queue supérieure mais plus mauvais dans le centre.
+
+
+## 1.5 Exemple
+
+Estimer la variance de l'estimateur de l'exemple précédent, et construire un intervalle de confiance à 95\% pour des estimations de $\Phi(2)$ et $\Phi(2.5)$.
+
+```{r}
+x <-2
+m <-1000
+z<- rnorm(m)
+g <- (z < x) # fonction indicatrice
+v <- mean((g-mean(g))^2)/m
+cdf <- mean(g)
+c(cdf,v)
+
+c(cdf-1.96*sqrt(v), cdf+1.96 *sqrt(v))
+```
+La probabilité $P(I(Z<x)=1)$ est $\Phi(2) \simeq$ `r cdf`. La variance de $g(x)$ est donc `r (cdf)-(1-cdf)/10000`.  
+
+# 2. Echantillonnage préférentiel
+
+En dépit de la forme sous-laquelle est écrite l’intégrale $I$, la densité de probabilité $f$ n’est pas nécessairement la meilleure densité de probabilité à utiliser dans la méthode de Monte Carlo. En effet, on peut écrire $I$ sous la forme suivante :
+
+
+$$ I = \int_R \frac{g(x)f(x)}{\tilde{f}(x)} \tilde{f}(x)dx$$
+où $\tilde{f}$ désigne une autre densité de probabilité: $\tilde{f}>0$ et $\int_R \tilde{f}(x)dx =1$.
+Suivant le même principe de Monte Carlo, on estime alors $I$ par 
+$$ \tilde{I}_n = \frac{1}{n} \sum_{i=1}^n  \frac{g(Y_i)f(Y_i)}{\tilde{f}(Y_i)} $$
+où $Y_1,y_2,\dots,Y_n$ sont des réalisations indépendantes suivant la loi de densité $\tilde{f}$.
+Si la densité $\tilde{f}$ est judicieusement choisie, $Var(g(X1)) > Var\left ( \frac{g(Y_1)f(Y_1)}{f(Y_1)} \right )$ et la méthode de Monte Carlo est alors plus efficace.
+
+
+## 2.1 Exercice
+
+Soit l'intégrale $I_1 = \int_0^2 x^2 dx$, on va l'estimer par différentes méthodes de Monte Carlo
+
+
+- On prend $g(x)=2x^2$ et $f$ la densité de la loi uniforme sur $[0,2]$. La méthode de Monte Carlo fournit alors l’estimation suivante de la véritable valeur $\int_0^2 x^2 dx = [\frac{1}{3}x^3]_0^2=\frac{1}{3}(2^3)-\frac{1}{3}(0^3)=\frac{8}{3}$
+
+```{r}
+x=2*runif(10000,0,1)
+y=2*x^2
+mean(y)
+```
+L'écart-type théorique de cette méthode est estimé par :
+
+```{r}
+stdev <- function(x) sqrt(var(x))
+stdev(y)
+```
+
+Comparer avec la valeur théorique $\sigma_f(g)=\int_0 ^2(2x^2 -E[g(X)])^2 1/2 dx =\int_0^2 \left (2x^2-\frac{8}{3} \right)^2 \left( \frac{1}{2} \right ) dx = \int_{0}^2 2 x^4 - \frac{16}{3} x^2 + \frac{32}{9} dx = \frac{2}{5} x^5 - \frac{16}{9} x^3+\frac{32}{9}x \left |_0 ^2 \right . =\sqrt{\frac{256}{45}}$
+
+On regarde maintenant la pertinence de l’assertion suivante : il y a 95\% de chance que $\epsilon_n$ appartienne à l’intervalle $\left [ -\frac{2\sigma_f}{\sqrt{n}};\frac{2\sigma_f}{\sqrt{n}} \right ]$. 
+Pour cela, on commence par calculer $1000$ estimations
+de Monte-Carlo et on trace le graphique suivant. Le vecteur $\epsilon$ contient les $1000$ valeurs de $\epsilon_{10000}$
+
+
+```{r , out.width="50%"}
+n=10000
+m=1000
+x=runif(n*m,0,2)
+T=matrix(x,m,n)
+T2=2*T^2
+In=apply(T2,1,mean)
+err=In-8/3
+plot(err)
+abline(h=2*sqrt(256/45)/sqrt(n))
+abline(h=-2*sqrt(256/45)/sqrt(n))
+```
+
+Compter le nombre d'erreurs qui sortent de l'intervalle proposé. Cela vous semble-t-il cohérent?
+
+```{r}
+# Coompter le nombre de points en dehors de l'intervalle de confiance
+hors_interval = sum(err > 2 * sqrt(256/45) / sqrt(n) | err < -2 * sqrt(256/45) / sqrt(n))
+cat("Nombre de points en dehors interval de confiance:", hors_interval, "\n")
+```
+
+
+Quelle est la taille de l’échantillon nécessaire (i.e. $n$) pour que l'erreur d'estimation de $I$ soit inférieure  à $10^{-2}$ avec 
+une confiance de 95\% ?
+
+$$ 10^{-2}=1.96 \times \frac{\sigma_f}{\sqrt{n}} $$
+$$ n= \left ( \frac{1.96 \times \sqrt{\frac{256}{45}}}{10^{-2}} \right )^2 $$
+```{r}
+# Calcul taille échantillon (n)
+n_necessaire = (1.96 * sqrt(256/45) / 1e-2)^2
+cat("Taille échantillon requise (n):", ceiling(n_necessaire), "\n")
+```
+
+
+- On applique maintenant la méthode de réduction de variance par échantillonnage préférentiel avec $\tilde{f}(x) = \frac{1}{5} \mathbbm{1}_{[0,1]}(x) + \frac{4}{5} \mathbbm{1}_{[1,2]}(x)$. 
+
+$\tilde{f}$ est une densité. 
+\begin{eqnarray*}
+\int_{- \infty}^{\infty} \tilde{f} &=& \int_0^1 \frac{1}{5} + \int_1^2 \frac{4}{5} \\
+&=&  \frac{1}{5} + \frac{4}{5} = 1
+\end{eqnarray*}
+
+Afin d'obtenir une première estimation de $I_1$, on peut donc procéder comme suit:
+
+
+```{r}
+u=runif(1000,0,1)
+v=c()
+v[which(u<=1/5)]=runif(length(which(u<=1/5)),0,1)
+v[which(u>1/5)]=runif(length(which(u>1/5)),1,2) 
+# v est Y_1,...,Y_10000
+pds=c()
+pds[which(v<1)]=1/5
+pds[which(v>=1)]=4/5
+mean(v^2/pds)
+```
+
+Cette valeur vous semble-t-elle cohérente?
+L'écart-type théorique de cette méthode est estimé par:
+
+```{r}
+stdev <- function(x) sqrt(var(x))
+stdev(v^2/pds)
+```
+
+Comparer avec la valeur théorique $\sigma_{\tilde{f}} \left ( \frac{gf}{\tilde{f}} \right ) = \sqrt{E\left [ \left ( \frac{g}{\tilde{f}} \right )^2 \right ] - \left ( E \left [ \frac{g}{\tilde{f}}\right ] \right )^2 } = \sqrt{\frac{59}{36}}$.
+
+On a :
+\begin{eqnarray*} E \left [ \frac{g}{\tilde{f}} \right ] &=& E\left [ \frac{x^2}{\tilde{f}(x)} \right ] \\
+&=& \int_0^1 \frac{x^2}{1/5} dx + \int_1^2 \frac{x^2}{4/5} dx \\
+&=& 5 \int_0^1 x^2 dx + 5/4 \int_1^2 x^2 dx \\
+&=& \frac{5}{3} \times x^3\Bigm\lvert_{0}^{1} + \frac{5}{12} \times x^3 \Bigm\lvert_{1}^{2} = 5/3 + (5/12 \times 7) = \frac{55}{12}
+\end{eqnarray*}
+et $$ E \left ( \left [ \frac{g}{\tilde{f}}   \right ] \right )^2 = (55/12)^2$$
+\begin{eqnarray*} 
+E \left [ \left (\frac{g}{f} \right )^2  \right ] &=& E \left [ \left (\frac{x^2}{\tilde{f}(x)} \right )^2  \right ] \\
+& =& \int_0^1 \left ( x^2/ 1/5 \right )^2 dx + \int_1^2 \left ( x^2/ 4/5 \right )^2 dx \\
+& =& 25 \int_0^1 x^4 dx + 25/16 \int_1^2  x^4  dx \\
+&=& 25 \times \frac{x^5}{5}\Bigm\lvert_{0}^{1} + 25/16 \times \frac{x^5}{5} \Bigm\lvert_{1}^{2} \\ 
+&=&25 \left ( \frac{1}{5} - 0 \right) + 25/16 \left ( \frac{32}{5} - \frac{1}{5} \right) \\
+&=&5 + \left ( \frac{25}{16} \times  \frac{31}{5} \right ) \\
+&=& \frac{5 \times 31}{16} = \frac{155}{16}
+\end{eqnarray*}
+où 
+$$\sigma{\tilde{f}} \left ( \frac{gf}{\tilde{f}} \right ) = \sqrt{\frac{17}{50}-(3/5)^2} = \sqrt{ \frac{59}{36} }$$
+
+$$\sigma{\tilde{f}} \left ( \frac{gf}{\tilde{f}} \right ) = \sqrt{\frac{155}{16}-\frac{3025}{144}} = \sqrt{ \frac{59}{36} }$$
+
+On regarde maintenant avec cette méthode lorsque l'on calcule $1000$ valeurs de $\epsilon_{1000}$:
+
+```{r , out.width="50%"}
+n=10000
+m=1000
+u=runif(n*m,0,1)
+v=c()
+v[which(u<=1/5)]=runif(length(which(u<=1/5)),0,1)
+v[which(u>1/5)]=runif(length(which(u>1/5)),1,2)
+x=v
+T=matrix(x,m,n)
+T2=T^2
+pds=matrix(0,m,n)
+pds[which(T<1)]=1/5
+pds[which(T>=1)]=4/5
+In=apply(T2/pds,1,mean)
+err=In-8/3
+plot(err)
+abline(h=2*sqrt(59/36)/sqrt(n))
+abline(h=-2*sqrt(59/36)/sqrt(n))
+```
+
+Entre la première méthode de Monte Carlo et celle-ci laquelle est la plus efficace?
+
+Quelle est la taille de l'échantillon (i.e. $n$) pour que l'erreur d'estimation de $I$ soit inférieure à $10^{-2}$ avec une confiance de 95\% ? De combien la taille de l'échantillon a-t-elle été réduite par rapport à la méthode de la première question?
+
+- Reprendre la démarche précédente et répondre aux mêmes questions avec la méthode de réduction de variance par échantillon préférentiel où $\tilde{f}(x)=\frac{2}{30} \mathbbm{1}_{[0,0.5]}(x)+ \frac{8}{30} \mathbbm{1}_{[0.5,1]}(x) +\frac{18}{30} \mathbbm{1}_{[1,1.5]}(x) + \frac{32}{30} \mathbbm{1}_{[1.5,2]}(x)$. Dans ce cas, l'écart-type théorique est $\sqrt{\frac{2227}{4608}}$.
+
+On vérifie que $\tilde{f}$ est une densité:
+
+\begin{eqnarray*}
+\int_{-\infty}^{+\infty} \tilde{f}(x) dx & = & \int_{0}^{0.5} \frac{2}{30} dx + \int_{0.5}^{1} \frac{8}{30} dx + \int_{1}^{1.5} \frac{18}{30} dx 
++ \int_{1.5}^{2} \frac{32}{30} dx \\
+& = & \frac{2}{30} [x]_0^{0.5} +  \frac{8}{30} [x]_{0.5}^1 +  \frac{18}{30} [x]_1^{1.5} 
++  \frac{32}{30} [x]_{1.5}^2 \\
+& = & 0.5 \left ( \frac{2}{30} +  \frac{8}{30} + \frac{18}{30} + \frac{32}{30} \right ) \\
+& = & 1
+\end{eqnarray*}
+
+```{r, warning=FALSE, out.width="50%"}
+#install.packages("ggplot2")
+library(ggplot2)
+            
+# Définir les fonctions de pondération
+tilde_f1 <- function(x) (1/5) * (x >= 0 & x < 1) + (4/5) * (x >= 1 & x <= 2)
+tilde_f2 <- function(x) (2/30) * (x >= 0 & x < 0.5) + (8/30) * (x >= 0.5 & x < 1) +(18/30) * (x >= 1 & x < 1.5) + (32/30) * (x >= 1.5 & x <= 2)
+f <- function(x) x^2
+            
+# Générer des valeurs pour x
+x_values <- seq(0, 2, length.out = 1000)
+# Créer un data frame pour les graphiques
+data <- data.frame(x = x_values, tilde_f1 = tilde_f1(x_values), tilde_f2 = tilde_f2(x_values), x_squared = f(x_values))
+            
+# Tracer les graphiques
+ggplot(data, aes(x)) +
+geom_line(aes(y = tilde_f1), color = "blue", linetype = "solid", size = 1, label = expression(tilde(f)[1](x))) +
+              geom_ribbon(aes(ymin = 0, ymax = x_squared, fill = "red"), alpha = 0.2) +
+              geom_line(aes(y = tilde_f2), color = "green", linetype = "solid", size = 1, label = expression(tilde(f)[2](x))) +
+              labs(title = " ",
+                   x = "x",
+                   y = "y") +
+              theme_minimal() +
+              scale_y_continuous(labels = scales::scientific_format()) +
+              guides(fill = FALSE)
+
+```
+
+
+$$ E \left [ \frac{g}{\tilde{f}} \right ]= E \left [ \frac{x^2}{\tilde{f}(x)} \right ] = 2/30 \times 0.5 + 8/30 \times 0.5 + 18/30 \times 0.5 + 32/30 \times  0.5 =0.5$$
+On trouve pour $$ E \left [ \left ( \frac{x^2}{\tilde{f}(x)} \right )^2\right ] = 0.5$$
+
+on obtient 
+
+
+# 3. Variables de contrôle 
+
+Le principe des méthodes avec variables de contrôle est de déterminer une fonction $h$ telle que $\sigma_f(g-h)<\sigma_f(g)$ et $\int_R h(x)f(x)dx$ est connue explicitement. Dans ce cas on écrit 
+ 
+$$ I = \int_R (g(x)-h(x)) f(x) dx + \int_R h(x) f(x) dx$$
+et l'estimation de $I$ est alors:
+
+$$ \hat{I}_n = \frac{1}{n} \sum_{i=1}^n (g(X_i)-h(X_i)) dx + \int_R h(x) f(x) dx$$
+où $X_1,X_2,\dots,X_n$ sont des réalisatioms indépendantes suivant la loi de densité $f$. On a alors amélioré la variance de la méthode de Monte-Carlo.
+
+On va illustrer la méthode sur l'intégrale $I_2=\int_{0}^1\sqrt{1-x^2} dx = \frac{\pi}{4}$. L'écart type de la méthode de Monte-Carlo "Crue" (Crude) ou "naturelle" est $\sqrt{0.05}$. On cosnidère ensuite la fonction $h(x)=c(x-0.5)$ où $c$ est une cosntante réelle.
+
+- Montrer que $I_2 = \int_{0}^1 \sqrt{1-x^2} dx = \int_0^1 (\sqrt{1-x^2} -h(x)) dx$
+- Calculer, en fonction de $c$, $\sigma_f(g-h)$ lorsque la densité de la loi uniforme sur $[0,1]$ et $g(x)= \sqrt{1-x^2}$. Montrer qu'il existe une valeur optimal $c^*$ de $c$ minimisant cette quantité.  
+
+# 4. Variables antithétiques
+
+
+Exemple: 
+
+Reprendre l'exemple:
+
+$$ \Phi(x) = \int_{-\infty}^{+ \infty} \frac{1}{\sqrt{2 \pi}} e^{-t^2/2}dt $$
+On utilise des varaibles antithétiques, et on trouve une réduction  de l'erreur. Le paramètre cible est $\theta=E_u [x e^{-(xU)^2/2}]$, où $U \sim U(0,1)$.
+En restreignant la simulation à la queue de distribution haute, la fonction $g(.)$ est monotone, donc l'hypothèse est satisfaite. On génère des nombres aléatoires $u_1,\dots,u_m \sim U(0,1)$ et on calcule la moité des répications en utilisant  
+$$ Y_j = g^{(i)}(u)= xe^{-(u_j)x^2/2}, j=1,\dots,m/2$$
+et on calcule la moité des répilcations restantes en utilisant 
+$$ Y_j^{'}=xe^{-(u_j)x^2/2}, j=1,\dots,m/2 $$
+La moyenne empirique 
+\begin{eqnarray*}
+\hat{\theta} &=& \frac{1}{m} \sum_{j=1}^{m/2}(xe^{-(u_j)x^2/2} + xe^{-((1-u_j))x^2/2}) \\
+& =& \frac{1}{m/2} \sum_{j=1}^{m/2} \left ( \frac{xe^{-(u_j)x^2/2} + xe^{-((1-u_j))x^2/2}}{2} \right )
+\end{eqnarray*}
+
+converge vers $E[\hat{\theta}]=\theta$ tant que  $m \rightarrow \infty$. Si $x<0$, l'estimation de $\Phi(x)$ est $0.5 + \hat{\theta}/\sqrt{}2 \pi$. Si $x<0$ calculer $\Phi(x)=1-\Phi(x)$.
+
+La fonction MC.Phi ci-dessous implémente l'estimation de $\Phi(x)$, elle calcule l'estimation avec et sans variable antithétique.
+
+```{r}
+MC.Phi <- function(x, R = 10000, antithetic = TRUE) {
+u <- runif(R/2)
+if (!antithetic)
+v <- runif(R/2) else v <- 1 - u
+u <- c(u, v)
+cdf <- numeric(length(x))
+for (i in 1:length(x)) {
+g <- x[i] * exp(-(u * x[i])^2/2)
+cdf[i] <- mean(g)/sqrt(2 * pi) + 0.5
+}
+cdf
+}
+```
+
+Comparaison des estimations
+
+```{r}
+x <- seq(0.1, 2.5, length = 5)
+Phi <- pnorm(x)
+set.seed(123)
+
+MC1 <- MC.Phi(x, anti = FALSE)
+set.seed(123)
+MC2 <- MC.Phi(x)
+print(round(rbind(x, MC1, MC2, Phi), 5))
+```
+
+```{r}
+m <- 1000
+MC1 <- MC2 <- numeric(m)
+x <- 1.95
+for (i in 1:m) {
+MC1[i] <- MC.Phi(x, R = 1000, anti = FALSE)
+MC2[i] <- MC.Phi(x, R = 1000)
+}
+print(sd(MC1))
+## [1] 0.006874616
+print(sd(MC2))
+## [1] 0.0004392972
+print((var(MC1) - var(MC2))/var(MC1))
+## [1] 0.9959166
+```
+
+Exercice :
+On s'intéresse à l'estimation de l'intégrale $I=\int_0^1 e^u du$.
+
+- Donner la formule de l'estimateur de Monte-Carlo standard $\hat{I}_n$. Rappeler le théorème de la limite centrale (TCL) auquel il obéit et calculer la variance $\sigma^2$ qu'il fait intervenir. Donner un estimateur de $\sigma_n^2$ de $\sigma^2$.
+
+- Illuster graphiquement la convergence de $\sigma_n^2$ vers $\sigma^2$.
+
+- Donner un estimateur $\tilde{I}_n$ de $I$ à base de variables antithétiques. Quelles est sa variance théorique $s^2$? Par rapport au Monte-Carlo standard, par combien (environ) a-t-on divisé le temps de calcul pour atteindre la même précision?
+
+- Soit $c$ une constante et $X_c= \exp(U)+ c(U-1/2)$, où $U \sim \mathcal{U}_{[0,1]}$. Quelles est la moyenne de la variable $X_c$? Exprimer la variance de $X_c$ en fonction de $c$ et des varainces et covariance de $U$ et $\exp(U)$. En déduire la valeur $c^*$ de $c$ rendant cette variance minimale et préciser $Var(X_{c^*})$. Comparer à $s^2$.
